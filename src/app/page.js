@@ -29,7 +29,7 @@ export default function Home() {
       const formData = new FormData();
       formData.append("BRD", file);
 
-      const response = await fetch("http://localhost:5678/webhook/generate-dashboard", {
+      const response = await fetch("http://localhost:5678/webhook/0675382d-e645-410b-9b62-db80ca8f463c", {
         method: "POST",
         body: formData,
       });
