@@ -9,6 +9,7 @@ import {
   runApplicationBriefAgent,
   runWireframeGeneratorAgent,
   runPptxGeneratorAgent,
+  runDashboardPptxGeneratorAgent,
   extractStructuredDataFromDI,
 } from "@/utils/aiAgents";
 
@@ -87,9 +88,9 @@ export async function POST(req: Request) {
       // 3. Execute Python Code
       const timestamp = Date.now();
       const pyFilename = `gen_wireframe_${timestamp}.py`;
-      const pdfFilename = `output_wireframe_${timestamp}.pdf`;
+      const pptxFilename = `output_wireframe_${timestamp}.pptx`;
       const scriptPath = path.join(process.cwd(), pyFilename);
-      const outputPath = path.join(process.cwd(), pdfFilename);
+      const outputPath = path.join(process.cwd(), pptxFilename);
 
       try {
         console.log(`[PDF Path] Writing temporary Python script to ${scriptPath}...`);
@@ -97,9 +98,9 @@ export async function POST(req: Request) {
         console.log(`[PDF Path] Code Preview: ${pythonCode.substring(0, 100)}...`);
         await writeFileAsync(scriptPath, pythonCode);
 
-        console.log("[PDF Path] Ensuring reportlab is installed...");
+        console.log("[PDF Path] Ensuring python-pptx is installed...");
         try {
-          await execAsync("python -m pip install reportlab");
+          await execAsync("python -m pip install python-pptx");
         } catch (e: any) {
           console.warn("PIP install warning (might already exist):", e.stderr || e.message);
         }
@@ -118,22 +119,22 @@ export async function POST(req: Request) {
           console.error(`[PDF Path] Output file missing at ${outputPath}`);
           // List files in CWD for debug
           const files = fs.readdirSync(process.cwd());
-          console.log("[PDF Path] Files in CWD:", files.filter(f => f.startsWith("output") || f.endsWith(".pdf")));
-          throw new Error("Python script finished but the PDF was not created. This usually means a logic error in the generated script.");
+          console.log("[PDF Path] Files in CWD:", files.filter(f => f.startsWith("output") || f.endsWith(".pptx")));
+          throw new Error("Python script finished but the PPTX was not created. This usually means a logic error in the generated script.");
         }
 
         // Read the file
-        const pdfBuffer = await readFileAsync(outputPath);
+        const pptxBuffer = await readFileAsync(outputPath);
 
         // Cleanup on SUCCESS
         await safeUnlink(scriptPath);
         await safeUnlink(outputPath);
 
-        console.log("=== PDF WORKFLOW COMPLETE ===");
-        return new Response(pdfBuffer, {
+        console.log("=== WIREFRAME PPTX WORKFLOW COMPLETE ===");
+        return new Response(pptxBuffer, {
           headers: {
-            "Content-Type": "application/pdf",
-            "Content-Disposition": `attachment; filename="wireframe_${timestamp}.pdf"`,
+            "Content-Type": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            "Content-Disposition": `attachment; filename="wireframe_${timestamp}.pptx"`,
           },
         });
 
@@ -200,6 +201,71 @@ export async function POST(req: Request) {
           console.warn("[PPTX Path] Cleanup failed during error handling:", cleanupErr);
         }
         return NextResponse.json({ error: `PPTX Engine Error: ${err.message}` }, { status: 500 });
+      }
+    }
+
+    // --- DASHBOARD PPTX PATH ---
+    if (generatorType === "dashboard-pptx") {
+      console.log("[Dashboard PPTX Path] Initiating Analytics PPTX Workflow...");
+      
+      // 1. Run Analytics Pipeline
+      const kpiPresence = await classifyKpiPresence(fileBuffer, file.name, brdText);
+      let parsedKpiData: any;
+      if (kpiPresence.hasKPIs) {
+        const agent1RawJson = await runKpiAgent(brdText);
+        parsedKpiData = processAgent1Output(agent1RawJson, brdText);
+      } else {
+        const domainClassification = await runDomainClassificationAgent(brdText);
+        const agent4RawJson = await runKpiGeneratorAgent({
+          domain: domainClassification.domain,
+          industry: domainClassification.industry,
+          subIndustry: domainClassification.subIndustry,
+          clientName: domainClassification.clientName,
+          clientWebsite: domainClassification.clientWebsite,
+        });
+        parsedKpiData = processAgent1Output(agent4RawJson, brdText);
+      }
+      
+      const themeData = await generateWebsiteTheme(parsedKpiData);
+      const dashboardDesign = await runChartTypesAgent(themeData);
+      
+      const dashboardContext = {
+        theme: themeData,
+        design: typeof dashboardDesign === 'string' ? JSON.parse(dashboardDesign) : dashboardDesign
+      };
+
+      // 2. Generate Python Script (Dashboard PPTX Design Engine)
+      const pythonCode = await runDashboardPptxGeneratorAgent(dashboardContext);
+
+      // 3. Execute Python
+      const timestamp = Date.now();
+      const pyFilename = `gen_dash_pptx_${timestamp}.py`;
+      const pptxFilename = `dashboard_presentation_${timestamp}.pptx`;
+      const scriptPath = path.join(process.cwd(), pyFilename);
+      const outputPath = path.join(process.cwd(), pptxFilename);
+
+      try {
+        await writeFileAsync(scriptPath, pythonCode);
+        await execAsync(`python "${scriptPath}" --output "${outputPath}"`);
+
+        if (!fs.existsSync(outputPath)) {
+          throw new Error("Python script finished but the Dashboard PPTX was not created.");
+        }
+
+        const pptxBuffer = await readFileAsync(outputPath);
+        await safeUnlink(scriptPath);
+        await safeUnlink(outputPath);
+
+        console.log("=== DASHBOARD PPTX WORKFLOW COMPLETE ===");
+        return new Response(pptxBuffer, {
+          headers: {
+            "Content-Type": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            "Content-Disposition": `attachment; filename="dashboard_${timestamp}.pptx"`,
+          },
+        });
+      } catch (err: any) {
+        console.error("[Dashboard PPTX Path] FAILURE:", err.message);
+        return NextResponse.json({ error: `Dashboard PPTX Engine Error: ${err.message}` }, { status: 500 });
       }
     }
 

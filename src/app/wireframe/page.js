@@ -6,8 +6,8 @@ const STAGES = [
   "Analyzing Requirement Document...",
   "Creating Application Brief...",
   "Designing User Journeys...",
-  "Generating PDF Wireframes...",
-  "Finalizing Document Output..."
+  "Generating PPTX Wireframes...",
+  "Finalizing Presentation Output..."
 ];
 
 export default function ApplicationWireframe() {
@@ -17,6 +17,7 @@ export default function ApplicationWireframe() {
   const [status, setStatus] = useState({ type: "", message: "" });
   const [currentStageIndex, setCurrentStageIndex] = useState(0);
   const [darkMode, setDarkMode] = useState(true);
+  const [abortController, setAbortController] = useState(null);
   const [mounted, setMounted] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
 
@@ -35,6 +36,15 @@ export default function ApplicationWireframe() {
     }
     return () => clearInterval(interval);
   }, [loading]);
+
+  const handleStop = () => {
+    if (abortController) {
+      abortController.abort();
+      setLoading(false);
+      setAbortController(null);
+      setStatus({ type: "info", message: "Generation stopped by user." });
+    }
+  };
 
   const handleFileChange = (e) => {
     if (e.target.files && e.target.files[0]) {
@@ -80,6 +90,8 @@ export default function ApplicationWireframe() {
       return;
     }
 
+    const controller = new AbortController();
+    setAbortController(controller);
     setLoading(true);
     setStatus({ type: "info", message: "" });
 
@@ -93,15 +105,16 @@ export default function ApplicationWireframe() {
       const response = await fetch(webhookUrl, {
         method: "POST",
         body: formData,
+        signal: controller.signal
       });
 
       if (response.ok) {
-        // Since it's a PDF, we'll handle it as a blob
+        // PPTX Handling
         const blob = await response.blob();
         const url = window.URL.createObjectURL(blob);
         const link = document.createElement("a");
         link.href = url;
-        link.download = `wireframe_${Date.now()}.pdf`;
+        link.download = `wireframe_${Date.now()}.pptx`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -113,10 +126,15 @@ export default function ApplicationWireframe() {
         setStatus({ type: "error", message: `Error: ${response.status} - ${errorData}` });
       }
     } catch (error) {
-      console.error("Submission error:", error);
-      setStatus({ type: "error", message: "Failed to connect to the generator service." });
+      if (error.name === 'AbortError') {
+        console.log('Fetch aborted');
+      } else {
+        console.error("Submission error:", error);
+        setStatus({ type: "error", message: "Failed to connect to the generator service." });
+      }
     } finally {
       setLoading(false);
+      setAbortController(null);
     }
   };
 
@@ -164,7 +182,7 @@ export default function ApplicationWireframe() {
                 </span>
               </h1>
               <p className={`mt-4 text-sm md:text-base font-light ${darkMode ? "text-blue-300" : "text-gray-500"}`}>
-                High-fidelity multi-page application mockups exported as PDF documents.
+                High-fidelity multi-slide application mockups exported as editable PPTX presentations.
               </p>
             </div>
 
@@ -228,9 +246,36 @@ export default function ApplicationWireframe() {
                       <span>{STAGES[currentStageIndex]}</span>
                     </div>
                   ) : (
-                    "Generate Application PDF"
+                    "Generate Application PPTX"
                   )}
                 </button>
+
+                {loading && (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <p className={`text-sm font-medium ${darkMode ? "text-blue-300" : "text-indigo-600"}`}>
+                        {STAGES[currentStageIndex]}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={handleStop}
+                        className={`text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-md border transition-all ${
+                          darkMode 
+                          ? "border-red-500/50 text-red-400 hover:bg-red-500/20" 
+                          : "border-red-200 text-red-600 hover:bg-red-50"
+                        }`}
+                      >
+                        Stop Execution
+                      </button>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-1.5 dark:bg-gray-700">
+                      <div
+                        className="bg-blue-600 h-1.5 rounded-full transition-all duration-500"
+                        style={{ width: `${((currentStageIndex + 1) / STAGES.length) * 100}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                )}
 
                 {status.message && !loading && (
                   <div className={`p-4 rounded-lg text-center text-sm font-semibold ${status.type === "error"
@@ -253,7 +298,7 @@ export default function ApplicationWireframe() {
                 <div className={`p-2 rounded-lg ${darkMode ? "bg-indigo-500/20 text-indigo-400" : "bg-blue-100 text-blue-600"}`}>
                   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
                 </div>
-                <h2 className={`font-bold uppercase tracking-[0.1em] text-sm ${darkMode ? "text-indigo-200" : "text-gray-700"}`}>PDF Generator Note:</h2>
+                <h2 className={`font-bold uppercase tracking-[0.1em] text-sm ${darkMode ? "text-indigo-200" : "text-gray-700"}`}>PPTX Generator Note:</h2>
               </div>
 
               <div className="space-y-6">
@@ -267,7 +312,7 @@ export default function ApplicationWireframe() {
                 <div className="flex space-x-4">
                   <div className={`mt-1 flex-shrink-0 w-1.5 h-1.5 rounded-full ${darkMode ? "bg-indigo-400 shadow-[0_0_8px_rgba(129,140,248,0.6)]" : "bg-blue-500"}`} />
                   <p className={`text-sm leading-relaxed ${darkMode ? "text-gray-300" : "text-gray-600"}`}>
-                    The wireframe output will be generated as a multi-page high-fidelity document and will be **autodownloaded in .pdf format**.
+                    The wireframe output will be generated as a multi-slide high-fidelity presentation and will be **autodownloaded in .pptx format**.
                   </p>
                 </div>
               </div>
@@ -275,7 +320,7 @@ export default function ApplicationWireframe() {
               <div className={`pt-6 border-t ${darkMode ? "border-indigo-900/40" : "border-gray-100"}`}>
                 <div className={`flex items-center text-xs font-medium space-x-2 ${darkMode ? "text-indigo-400/70" : "text-blue-400"}`}>
                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
-                  <span>Premium PDF Generation</span>
+                  <span>Premium PPTX Generation</span>
                 </div>
               </div>
             </div>

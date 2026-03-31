@@ -19,8 +19,8 @@ export default function Home() {
   const [darkMode, setDarkMode] = useState(true);
   const [mounted, setMounted] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [abortController, setAbortController] = useState(null);
   const [format, setFormat] = useState("dashboard-wireframe");
-
 
   useEffect(() => {
     setMounted(true);
@@ -37,6 +37,15 @@ export default function Home() {
     }
     return () => clearInterval(interval);
   }, [loading]);
+
+  const handleStop = () => {
+    if (abortController) {
+      abortController.abort();
+      setLoading(false);
+      setAbortController(null);
+      setStatus({ type: "info", message: "Execution stopped by user." });
+    }
+  };
 
   const handleFileChange = (e) => {
     if (e.target.files && e.target.files[0]) {
@@ -82,6 +91,8 @@ export default function Home() {
       return;
     }
 
+    const controller = new AbortController();
+    setAbortController(controller);
     setLoading(true);
     setStatus({ type: "info", message: "" });
 
@@ -90,18 +101,13 @@ export default function Home() {
       formData.append("BRD", file);
       formData.append("generatorType", format);
 
-
       const webhookUrl = process.env.NEXT_PUBLIC_WEBHOOK_URL || "/api/webhook";
-
-
-      console.log(webhookUrl);
 
       const response = await fetch(webhookUrl, {
         method: "POST",
         body: formData,
+        signal: controller.signal
       });
-
-      console.log('here');
 
       if (response.ok) {
         const contentType = response.headers.get("content-type");
@@ -133,7 +139,8 @@ export default function Home() {
           link.href = url;
           
           // Determine filename based on generator type
-          const filename = format === "application-wireframe" ? "wireframe.pdf" : 
+          const filename = format === "application-wireframe" ? "wireframe.pptx" : 
+                          format === "dashboard-pptx" ? "dashboard.pptx" : 
                           format === "application-pptx" ? "presentation.pptx" : 
                           "output.html";
                           
@@ -143,21 +150,24 @@ export default function Home() {
           document.body.removeChild(link);
           window.URL.revokeObjectURL(url);
           
-          const typeLabel = format === "application-wireframe" ? "PDF" : 
-                          format === "application-pptx" ? "PPTX" : "File";
+          const typeLabel = (format === "application-wireframe" || format === "dashboard-pptx" || format === "application-pptx") 
+                          ? "PPTX" : "File";
           setStatus({ type: "success", message: `${typeLabel} generated and downloaded successfully!` });
         }
       } else {
-
         const errorData = await response.text();
         setStatus({ type: "error", message: `Error: ${response.status} - ${errorData}` });
       }
     } catch (error) {
-      console.error("Submission error:", error);
-      setStatus({ type: "error", message: "Failed to connect to the generation engine. Please try again." });
+      if (error.name === 'AbortError') {
+        console.log('Fetch aborted');
+      } else {
+        console.error("Submission error:", error);
+        setStatus({ type: "error", message: "Failed to connect to the generation engine. Please try again." });
+      }
     } finally {
-
       setLoading(false);
+      setAbortController(null);
     }
   };
 
@@ -337,8 +347,8 @@ export default function Home() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setFormat("application-pptx")}
-                    className={`flex-1 py-3 rounded-xl border-2 transition-all ${format === "application-pptx" 
+                    onClick={() => setFormat("dashboard-pptx")}
+                    className={`flex-1 py-3 rounded-xl border-2 transition-all ${format === "dashboard-pptx" 
                       ? (darkMode ? "bg-blue-600 border-blue-400 text-white" : "bg-indigo-600 border-indigo-500 text-white")
                       : (darkMode ? "bg-transparent border-blue-900/30 text-blue-300" : "bg-white border-gray-200 text-gray-600")
                     }`}
@@ -426,10 +436,23 @@ export default function Home() {
                 </button>
 
                 {loading && (
-                  <div className="space-y-3">
-                    <p className={`text-center text-sm font-medium ${darkMode ? "text-blue-400" : "text-indigo-600"}`}>
-                      {STAGES[currentStageIndex]}
-                    </p>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <p className={`text-sm font-medium ${darkMode ? "text-blue-400" : "text-indigo-600"}`}>
+                        {STAGES[currentStageIndex]}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={handleStop}
+                        className={`text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-md border transition-all ${
+                          darkMode 
+                          ? "border-red-500/50 text-red-400 hover:bg-red-500/20" 
+                          : "border-red-200 text-red-600 hover:bg-red-50"
+                        }`}
+                      >
+                        Stop Execution
+                      </button>
+                    </div>
                     <div className="w-full bg-gray-200 rounded-full h-1.5 dark:bg-gray-700">
                       <div
                         className="bg-blue-600 h-1.5 rounded-full transition-all duration-500"

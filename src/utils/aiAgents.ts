@@ -410,13 +410,13 @@ First character must be "{", last character "}".`;
 export async function runWireframeGeneratorAgent(applicationBriefJson: string): Promise<string> {
   const model = createAzureModel(16000);
 
-  const prompt = `You are the IntelliFrame DESIGN ENGINE (v2.0 - ReportLab Master).
-Generate a SINGLE high-fidelity ReportLab Python script for multi-page wireframes.
+  const prompt = `You are the IntelliFrame WIREFRAME DESIGN ENGINE (v2.0 - PPTX Master).
+Generate a SINGLE high-fidelity python-pptx script for multi-slide wireframes.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🎨 PREMIUM DESIGN SYSTEM (v2.0 - frontend-design Edition)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-- PHILOSOPHY: "Restraint is luxury." Every pixel has a purpose. No Overlaps.
+- THEME: Ultra Dark (#05080F base). "Restraint is luxury." No Overlaps.
 - GRID & SPACING: Strict 8-pt Grid (8, 16, 24, 32, 48, 64). Use generous whitespace (Luxury = Breathing Room).
 - RATIO: Golden Ratio (1.618) for all scale calculations:
     * Content : Sidebar = 62% : 38%
@@ -435,35 +435,33 @@ ${applicationBriefJson}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🛠️ RENDERER UTILITIES (MUST DEFINE)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-- CLI: Use 'argparse' for '--output'.
+- CLI: Use 'argparse' to capture '--output'.
 - clean_txt(t): USE REGEX re.sub(r'<[^>]*>', '', t) TO STRIP ALL HTML/XML TAGS.
-- rr(c, x, y, w, h, r, fill, stroke, sw): Rounded rect utility with subtle depth.
-- para(c, text, x, y, w, max_h, font, size, color, leading, align): 
-    * MUST calculate text wrap and return height_consumed.
-    * ⚠️ CALL WITH POSITIONAL ARGS ONLY: para(c, "Text", 48, 750, 350, 100, "Helvetica", 12, "#000000", 14, "left")
-- label_pill(c, x, y, text, bg, fg, font_size, padding_x, h): Tag/Domain pills.
-- gradient_fill(c, x, y, w, h, c1, c2, steps): Luxury background depth.
+- set_bg(slide, hex): Apply corporate dark background.
+- add_txt(slide, text, x, y, w, h, size, color_hex, bold=False, align=1): 
+    * ⚠️ CALL WITH POSITIONAL ARGS ONLY: add_txt(slide, "Text", 1, 1, 3, 0.5, 12, "#FFFFFF", True, 1)
+    * NOTE: Align values: 1=Left, 2=Center, 3=Right.
+- add_rect(slide, x, y, w, h, fill_hex, line_hex, line_w=1.0, r=0.1): Rounded surface cards.
+- add_pill(slide, x, y, text, bg_hex, fg_hex, size=10): Category badges.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📄 PAGE TEMPLATES (PREMIUM - NO OVERLAPS)
+📄 SLIDE TEMPLATES (v2.0 - WIREFRAMES)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-1. HERO (Page 1): 
-   - [SAFE ZONE] Starting Y: 780.
-   - Left (62%): Portfolio Title (size 42, bold, wrapped). 
-   - Right (38%): 4 High-Impact Stat Cards. X starts at 380.
-   - [CONSTRAINT]: Titles must never overwrite stats cards. Limit title width to (350).
-2. CATALOG (Page 2): Asymmetric Grid layout. 
-   - Cards use 24pt vertical spacing between blocks.
-3. DETAIL (Page 3+): 1.618 Ratio Split. 
-   - Main (62%): Summary & Facts. Sidebar (38%): Sidebar Metrics.
+1. HERO:
+   - Left (62%): Portfolio Title (clean_txt applied). Large Typography (Pt 44+). 
+   - Right (38%): 4 Stat Cards showing high-level highlights.
+2. CATALOG: Asymmetric layout. Cards for all apps found in BRIEF with 8pt spacing.
+3. DETAIL: One slide per app. 
+   - Left (62%): App Identity (clean_txt), Overview (Miller's Law chunking), Features.
+   - Right (38%): Technical Specs, Metrics, Domain Pills.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-⚠️ IMPLEMENTATION RULES
+⚠️ CODE REQUIREMENTS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-- [UNIFORM CLEANING]: CALL clean_txt() ON EVERY STRING FROM DATA BEFORE RENDERING.
-- [Y-MANAGEMENT]: ly = current_y. Advance ly by (consumed_height + 24pt) after every para() call.
-- [MARGINS]: Left margin: 48pt. Page wrap: saveState/restoreState.
-- [PAGING]: Call c.showPage() between each template.
+- Library: from pptx import Presentation; from pptx.util import Inches, Pt; from pptx.dml.color import RGBColor;
+- [UNIFORM CLEANING]: CALL clean_txt() ON EVERY STRING BEFORE RENDERING.
+- Errors: Ensure graceful fallback for missing BRIEF keys.
+- Saving: prs.save(args.output).
 
 OUTPUT ONLY THE COMPLETE PYTHON SCRIPT.`;
 
@@ -524,8 +522,9 @@ ${applicationBriefJson}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 - CLI: Use 'argparse' to capture '--output'.
 - set_bg(slide, hex): Apply corporate dark background.
-- add_txt(slide, text, x, y, w, h, size, color_hex, bold=False, align=0): 
-    * ⚠️ CALL WITH POSITIONAL ARGS ONLY: add_txt(slide, "Text", 1, 1, 3, 0.5, 12, "#FFFFFF", True, 0)
+- add_txt(slide, text, x, y, w, h, size, color_hex, bold=False, align=1): 
+    * ⚠️ CALL WITH POSITIONAL ARGS ONLY: add_txt(slide, "Text", 1, 1, 3, 0.5, 12, "#FFFFFF", True, 1)
+    * NOTE: Align values: 1=Left, 2=Center, 3=Right.
 - add_rect(slide, x, y, w, h, fill_hex, line_hex, line_w=1.0, r=0.1): Rounded surface cards.
 - add_pill(slide, x, y, text, bg_hex, fg_hex, size=10): Category badges.
 
@@ -568,6 +567,92 @@ OUTPUT ONLY THE COMPLETE PYTHON SCRIPT.`;
     return code;
   } catch (err: any) {
     throw new Error(`PPTX Design Engine (v2.0) Failed: ${err.message}`);
+  }
+}
+
+/**
+ * Agent: Dashboard PPTX Generator (ANALYTICS DESIGN ENGINE v1.0)
+ */
+export async function runDashboardPptxGeneratorAgent(dashboardContext: any): Promise<string> {
+  const model = createAzureModel(16000);
+  const contextStr = typeof dashboardContext === 'object' ? JSON.stringify(dashboardContext, null, 2) : dashboardContext;
+
+  const prompt = `You are the IntelliFrame ELITE DASHBOARD DESIGN ENGINE (v2.0 - PPTX Edition).
+Your goal is to generate a premium, high-fidelity ANALYTICS PRESENTATION using python-pptx.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🎨 PREMIUM DESIGN SYSTEM (ELITE DARK INDIGO)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- THEME: Elite Dark (#0F172A base). Accent Colors: Indigo (#6366F1), Emerald (#10B981), Rose (#F43F5E).
+- TYPOGRAPHY: 
+    * Titles: 32pt Bold, Silver White (#F8FAFC)
+    * KPI Labels: 12pt, Slate (#94A3B8)
+    * KPI Values: 28pt Bold, Indigo (#818CF8)
+- SPACING: Inches scale. Slide size: 10x5.625 (16:9).
+    * Margin-X: 0.5 inches
+    * Margin-Y: 0.5 inches
+    * Card Gaps: 0.25 inches
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📥 INPUT DASHBOARD CONTEXT (JSON)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${contextStr}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🛠️ ELITE RENDERER UTILITIES (MUST DEFINE)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- import sys, os, re, argparse
+- from pptx import Presentation
+- from pptx.util import Inches, Pt
+- from pptx.enum.text import PP_ALIGN
+- from pptx.dml.color import RGBColor
+- from pptx.chart.data import CategoryChartData
+- from pptx.enum.chart import XL_CHART_TYPE
+- CLI: Use 'argparse' to capture '--output'.
+- clean_txt(t): re.sub(r'<[^>]*>', '', t).
+- set_bg(slide, hex): Apply #0F172A background.
+- add_txt(slide, text, x, y, w, h, size, color_hex, bold=False, align=1):
+    * ⚠️ CALL WITH POSITIONAL ARGS ONLY: add_txt(slide, "Text", 1, 1, 3, 0.5, 12, "#FFFFFF", True, 1)
+- add_card(slide, x, y, w, h, fill_hex="#1E293B", line_hex="#334155"): Rounded surface container.
+- add_kpi(slide, x, y, label, value, trend): Create a beautiful KPI tile with specific trend color ( Emerald/Emerald for pos/neg).
+- add_chart(slide, title, x, y, w, h, ctype_str): 
+    * Function to add real charts (COLUMN_CLUSTERED, PIE, LINE).
+    * Use dummy analytical data (e.g. [20, 35, 25, 45]) for the UI visualization.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🚀 GENERATION RULES (v2.0)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. SLIDE 1 (TITLE): Dashboard Name, Organisation, Detailed Date.
+2. SLIDE 2 (EXECUTIVE OVERVIEW): 
+   * Top 4-6 KPIs from 'theme.kpiList' in a prominent grid.
+   * A short 'Executive Insight' text block.
+3. ANALYSIS SLIDES (ONE PER TAB):
+   * Render every TAB from 'design.tabs'.
+   * For each section:
+     - If it's a KPI list, render small card group.
+     - If it's a CHART, use 'add_chart' with the Tab Section Title.
+4. BRANDING: Add a small "IntelliFrame Intelligence" watermark in bottom right.
+
+OUTPUT ONLY THE SINGLE PYTHON SCRIPT. NO MARKDOWN. NO FENCES.`;
+
+  try {
+    console.log(`[Dashboard PPTX Engine v2.0] Orchestrating analytical layouts...`);
+    const res = await model.invoke(prompt);
+    let code = res.content.toString();
+
+    // Cleaning logic
+    code = code.replace(/```python/gi, '').replace(/```/gi, '').trim();
+    if (code.includes('import sys') || code.includes('from pptx')) {
+       // Valid script start
+    } else {
+       // Might need to extract if LLM added preamble
+       const scriptMatch = code.match(/import sys[\s\S]*prs\.save\(\)/i) || code.match(/from pptx[\s\S]*prs\.save\(\)/i);
+       if (scriptMatch) code = scriptMatch[0].trim();
+    }
+
+    return code;
+  } catch (err: any) {
+    throw new Error(`Dashboard PPTX Design Engine Failed: ${err.message}`);
   }
 }
 
