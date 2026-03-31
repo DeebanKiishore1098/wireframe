@@ -19,11 +19,11 @@ import { exec } from "child_process";
 import fs from "fs";
 import path from "path";
 import { promisify } from "util";
+import { validatePythonScript, PYTHON_EXEC_TIMEOUT_MS, resolvePythonExecutable } from "@/utils/pythonSandbox";
 
 const execAsync = promisify(exec);
 const writeFileAsync = promisify(fs.writeFile);
 const readFileAsync = promisify(fs.readFile);
-const unlinkAsync = promisify(fs.unlink);
 
 const delay = (ms: number) => new Promise((res) => setTimeout(res, ms));
 
@@ -93,21 +93,34 @@ export async function POST(req: Request) {
       const outputPath = path.join(process.cwd(), pptxFilename);
 
       try {
+        // ── Security: validate generated code before touching disk ──
+        console.log(`[PDF Path] Validating generated Python script...`);
+        const validation = validatePythonScript(pythonCode);
+        if (!validation.safe) {
+          console.error(`[PDF Path] SECURITY: Script failed validation. Violations: ${validation.violations.join(', ')}`);
+          throw new Error(`Generated script failed security validation (${validation.violations.length} violation(s) detected). Regenerate or contact support.`);
+        }
+        console.log(`[PDF Path] Script passed security validation.`);
+
+        const pyExec = await resolvePythonExecutable();
+
         console.log(`[PDF Path] Writing temporary Python script to ${scriptPath}...`);
-        // Log snippet for debug
         console.log(`[PDF Path] Code Preview: ${pythonCode.substring(0, 100)}...`);
         await writeFileAsync(scriptPath, pythonCode);
 
         console.log("[PDF Path] Ensuring python-pptx is installed...");
         try {
-          await execAsync("python -m pip install python-pptx");
+          await execAsync(`${pyExec} -m pip install python-pptx`);
         } catch (e: any) {
           console.warn("PIP install warning (might already exist):", e.stderr || e.message);
         }
 
-        console.log(`[PDF Path] Executing Python script: python "${scriptPath}" --output "${outputPath}"`);
+        console.log(`[PDF Path] Executing Python script: ${pyExec} "${scriptPath}" --output "${outputPath}"`);
         try {
-          const { stdout, stderr } = await execAsync(`python "${scriptPath}" --output "${outputPath}"`);
+          const { stdout, stderr } = await execAsync(
+            `${pyExec} "${scriptPath}" --output "${outputPath}"`,
+            { timeout: PYTHON_EXEC_TIMEOUT_MS }
+          );
           if (stdout) console.log("[Python Script STDOUT]:", stdout);
           if (stderr) console.warn("[Python Script STDERR]:", stderr);
         } catch (execErr: any) {
@@ -171,10 +184,23 @@ export async function POST(req: Request) {
       const outputPath = path.join(process.cwd(), pptxFilename);
 
       try {
+        // ── Security: validate generated code before touching disk ──
+        console.log(`[PPTX Path] Validating generated Python script...`);
+        const validation = validatePythonScript(pythonCode);
+        if (!validation.safe) {
+          console.error(`[PPTX Path] SECURITY: Script failed validation. Violations: ${validation.violations.join(', ')}`);
+          throw new Error(`Generated script failed security validation (${validation.violations.length} violation(s) detected). Regenerate or contact support.`);
+        }
+        console.log(`[PPTX Path] Script passed security validation.`);
+
+        const pyExec = await resolvePythonExecutable();
         await writeFileAsync(scriptPath, pythonCode);
-        
-        console.log(`[PPTX Path] Executing: python "${scriptPath}" --output "${outputPath}"`);
-        await execAsync(`python "${scriptPath}" --output "${outputPath}"`);
+
+        console.log(`[PPTX Path] Executing: ${pyExec} "${scriptPath}" --output "${outputPath}"`);
+        await execAsync(
+          `${pyExec} "${scriptPath}" --output "${outputPath}"`,
+          { timeout: PYTHON_EXEC_TIMEOUT_MS }
+        );
 
         if (!fs.existsSync(outputPath)) {
           throw new Error("Python script finished but the PPTX was not created.");
@@ -196,6 +222,7 @@ export async function POST(req: Request) {
       } catch (err: any) {
         console.error("[PPTX Path] CRITICAL FAILURE:", err.message);
         try {
+          if (fs.existsSync(scriptPath)) await safeUnlink(scriptPath);
           if (fs.existsSync(outputPath)) await safeUnlink(outputPath);
         } catch (cleanupErr) {
           console.warn("[PPTX Path] Cleanup failed during error handling:", cleanupErr);
@@ -245,8 +272,23 @@ export async function POST(req: Request) {
       const outputPath = path.join(process.cwd(), pptxFilename);
 
       try {
+        // ── Security: validate generated code before touching disk ──
+        console.log(`[Dashboard PPTX Path] Validating generated Python script...`);
+        const validation = validatePythonScript(pythonCode);
+        if (!validation.safe) {
+          console.error(`[Dashboard PPTX Path] SECURITY: Script failed validation. Violations: ${validation.violations.join(', ')}`);
+          throw new Error(`Generated script failed security validation (${validation.violations.length} violation(s) detected). Regenerate or contact support.`);
+        }
+        console.log(`[Dashboard PPTX Path] Script passed security validation.`);
+
+        const pyExec = await resolvePythonExecutable();
         await writeFileAsync(scriptPath, pythonCode);
-        await execAsync(`python "${scriptPath}" --output "${outputPath}"`);
+
+        console.log(`[Dashboard PPTX Path] Executing: ${pyExec} "${scriptPath}" --output "${outputPath}"`);
+        await execAsync(
+          `${pyExec} "${scriptPath}" --output "${outputPath}"`,
+          { timeout: PYTHON_EXEC_TIMEOUT_MS }
+        );
 
         if (!fs.existsSync(outputPath)) {
           throw new Error("Python script finished but the Dashboard PPTX was not created.");
@@ -265,6 +307,12 @@ export async function POST(req: Request) {
         });
       } catch (err: any) {
         console.error("[Dashboard PPTX Path] FAILURE:", err.message);
+        try {
+          if (fs.existsSync(scriptPath)) await safeUnlink(scriptPath);
+          if (fs.existsSync(outputPath)) await safeUnlink(outputPath);
+        } catch (cleanupErr) {
+          console.warn("[Dashboard PPTX Path] Cleanup failed during error handling:", cleanupErr);
+        }
         return NextResponse.json({ error: `Dashboard PPTX Engine Error: ${err.message}` }, { status: 500 });
       }
     }

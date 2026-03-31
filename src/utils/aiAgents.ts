@@ -9,25 +9,22 @@ const createAzureModel = (maxTokens: number = 8000) => {
     azureOpenAIApiVersion: process.env.AZURE_OPENAI_API_VERSION || "2024-02-15-preview",
     azureOpenAIBasePath: process.env.AZURE_OPENAI_BASE_PATH,
     azureOpenAIEndpoint: process.env.AZURE_OPENAI_ENDPOINT,
-    temperature: undefined,
-    maxTokens: undefined,
-    modelKwargs: {
-      max_completion_tokens: maxTokens,
-    }
+    temperature: 0.1,
+    modelKwargs: { max_completion_tokens: maxTokens },
   });
 };
 
 const createAzureO1SeriesModel = () => {
-    return new AzureChatOpenAI({
-      azureOpenAIApiKey: process.env.AZURE_OPENAI_API_KEY,
-      azureOpenAIApiInstanceName: process.env.AZURE_OPENAI_API_INSTANCE_NAME,
-      azureOpenAIApiDeploymentName: "o1-preview", // Assume O1 for complex code gen
-      azureOpenAIApiVersion: process.env.AZURE_OPENAI_API_VERSION || "2024-09-01-preview",
-      azureOpenAIBasePath: process.env.AZURE_OPENAI_BASE_PATH,
-      azureOpenAIEndpoint: process.env.AZURE_OPENAI_ENDPOINT,
-      temperature: 1,
-    });
-  };
+  return new AzureChatOpenAI({
+    azureOpenAIApiKey: process.env.AZURE_OPENAI_API_KEY,
+    azureOpenAIApiInstanceName: process.env.AZURE_OPENAI_API_INSTANCE_NAME,
+    azureOpenAIApiDeploymentName: "o1-preview", // Assume O1 for complex code gen
+    azureOpenAIApiVersion: process.env.AZURE_OPENAI_API_VERSION || "2024-09-01-preview",
+    azureOpenAIBasePath: process.env.AZURE_OPENAI_BASE_PATH,
+    azureOpenAIEndpoint: process.env.AZURE_OPENAI_ENDPOINT,
+    temperature: 1,
+  });
+};
 
 
 export { createAzureModel };
@@ -38,15 +35,15 @@ export { createAzureModel };
 export async function extractStructuredDataFromDI(
   fileBuffer: Buffer,
   fileName: string
-): Promise<{ 
-  content: string; 
-  tables: any[]; 
-  pages: any[]; 
-  paragraphs?: any[]; 
+): Promise<{
+  content: string;
+  tables: any[];
+  pages: any[];
+  paragraphs?: any[];
   keyValuePairs?: any[];
 }> {
   const endpoint = process.env.AZURE_DOC_INTELLIGENCE_ENDPOINT;
-  const apiKey   = process.env.AZURE_DOC_INTELLIGENCE_KEY;
+  const apiKey = process.env.AZURE_DOC_INTELLIGENCE_KEY;
 
   if (!endpoint || !apiKey) {
     throw new Error("Azure Document Intelligence credentials missing in .env.local");
@@ -326,8 +323,8 @@ OUTPUT VALID JSON ONLY.`;
  * Agent: Application Brief (STRUCTURING ENGINE v2.0)
  */
 export async function runApplicationBriefAgent(diJson: string | object): Promise<string> {
-  const model = createAzureModel(8000);
-  
+  const model = createAzureModel(12000);
+
   // Prune the input JSON to stay within token limits
   const prunedData = pruneDiJson(typeof diJson === 'string' ? JSON.parse(diJson) : diJson);
   const diInput = JSON.stringify(prunedData, null, 2);
@@ -405,75 +402,134 @@ First character must be "{", last character "}".`;
 }
 
 /**
- * Agent: Wireframe Generator (DESIGN ENGINE v2.0 - DETERMINISTIC REPORTLAB)
+ * Agent: Wireframe Generator (DESIGN ENGINE v3.0 - UI WIREFRAME)
  */
 export async function runWireframeGeneratorAgent(applicationBriefJson: string): Promise<string> {
   const model = createAzureModel(16000);
 
-  const prompt = `You are the IntelliFrame WIREFRAME DESIGN ENGINE (v2.0 - PPTX Master).
-Generate a SINGLE high-fidelity python-pptx script for multi-slide wireframes.
+  const prompt = `You are the IntelliFrame APPLICATION WIREFRAME ENGINE (v3.0).
+Your job is to generate a python-pptx script that creates UI WIREFRAME MOCKUPS — actual application SCREENS showing how the software looks and works. NOT a portfolio catalog. NOT a slide deck about apps. REAL UI SCREENS.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🎨 PREMIUM DESIGN SYSTEM (v2.0 - frontend-design Edition)
+🖥️ WHAT A UI WIREFRAME LOOKS LIKE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-- THEME: Ultra Dark (#05080F base). "Restraint is luxury." No Overlaps.
-- GRID & SPACING: Strict 8-pt Grid (8, 16, 24, 32, 48, 64). Use generous whitespace (Luxury = Breathing Room).
-- RATIO: Golden Ratio (1.618) for all scale calculations:
-    * Content : Sidebar = 62% : 38%
-    * Typography Scale: Heading = Body * 1.618
-- COLORS (60-30-10 Rule): 
-    * 60% (Base): #080C14 (Deep Midnight)
-    * 30% (Surface): #0F172A (Slate)
-    * 10% (Accent): #2563EB (Electric Blue) -> NO PURPLE.
-- TYPOGRAPHY: High-contrast hierarchy. Use Helvetica/Helvetica-Bold. Line-height: 1.5x.
+Each slide = ONE application screen. A screen contains UI COMPONENTS:
+- TOP NAV BAR: Logo area (left), navigation links (center), user avatar + bell icon (right)
+- SIDEBAR (optional): Vertical menu with icons and labels for each section
+- PAGE HEADER: Screen title + breadcrumb + action buttons ("+ New", "Export", "Filter")
+- DATA TABLE: Column headers, rows with sample data, pagination bar
+- FORM: Input field labels with rounded rectangles as text inputs, dropdowns, checkboxes
+- CARDS / KPI TILES: Metric value + label + trend indicator arranged in a row
+- CHARTS: Placeholder rectangles labeled "Bar Chart — Revenue by Month" etc.
+- BUTTONS: Rounded rectangles with text ("Submit", "Cancel", "Save")
+- MODAL DIALOG: Centered overlay with title, form fields, action buttons
+- FOOTER: Status bar or copyright line
+
+These are LOW-FIDELITY / MID-FIDELITY UI wireframes — rectangles representing UI elements with labels, placeholder text, and clear visual hierarchy. Think Balsamiq or Figma wireframes.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📥 INPUT DATA (STRICT JSON)
+🎨 DESIGN SYSTEM
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- SLIDE SIZE: 13.333 x 7.5 inches (Widescreen 16:9)
+- SAFE AREA: x=[0.3 .. 13.0], y=[0.3 .. 7.2] — nothing may exceed these bounds
+- BACKGROUND: #0F172A (Dark Navy)
+- SURFACE/CARDS: #1E293B with 1pt #334155 border
+- ACCENT: #3B82F6 (Blue) for active states, primary buttons, selected nav items
+- TEXT PRIMARY: #F1F5F9 (near white)
+- TEXT SECONDARY: #94A3B8 (slate gray)
+- TEXT ON ACCENT: #FFFFFF
+- INPUT FIELDS: #0F172A fill with 1pt #475569 border (to look like text inputs)
+- FONTS: Calibri or Arial only (safe for python-pptx)
+- BORDER RADIUS: 0.08 inches on all rounded rectangles
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️ ANTI-OVERLAP RULES (CRITICAL — VIOLATIONS CAUSE REJECTION)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. TRACK CURSOR: Maintain a y_cursor variable per column. After placing any element, advance y_cursor by element_height + gap (minimum 0.15 inches).
+2. BOUNDS CHECK: Before placing ANY element, verify: x + w <= 13.0 AND y + h <= 7.2. If it would exceed, SKIP the element — never let it overflow.
+3. TEXT SIZING: Calculate text height BEFORE placement. For N lines of text at size S pt: height = N * (S / 72) * 1.4. Use this to set the text box height.
+4. TRUNCATION: ALL text displayed in a bounded area must be truncated:
+   - Taglines: max 80 chars
+   - Descriptions/overview: max 200 chars
+   - Table cell text: max 30 chars
+   - Nav labels: max 20 chars
+   Append "…" when truncating.
+5. NO STACKING: Never place two elements at the same (x, y). Always advance the cursor.
+6. GAP CONSTANTS: NAV_H = 0.6, SIDEBAR_W = 2.0, CARD_GAP = 0.2, ROW_GAP = 0.15, SECTION_GAP = 0.3
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📥 INPUT DATA (APPLICATION BRIEF)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ${applicationBriefJson}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🛠️ RENDERER UTILITIES (MUST DEFINE)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-- CLI: Use 'argparse' to capture '--output'.
-- clean_txt(t): USE REGEX re.sub(r'<[^>]*>', '', t) TO STRIP ALL HTML/XML TAGS.
-- set_bg(slide, hex): Apply corporate dark background.
-- add_txt(slide, text, x, y, w, h, size, color_hex, bold=False, align=1): 
-    * ⚠️ CALL WITH POSITIONAL ARGS ONLY: add_txt(slide, "Text", 1, 1, 3, 0.5, 12, "#FFFFFF", True, 1)
-    * NOTE: Align values: 1=Left, 2=Center, 3=Right.
-- add_rect(slide, x, y, w, h, fill_hex, line_hex, line_w=1.0, r=0.1): Rounded surface cards.
-- add_pill(slide, x, y, text, bg_hex, fg_hex, size=10): Category badges.
+Interpret each "application" in the brief as a SOFTWARE PRODUCT that needs UI screens designed for it.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📄 SLIDE TEMPLATES (v2.0 - WIREFRAMES)
+🛠️ REQUIRED PYTHON UTILITIES (DEFINE ALL BEFORE USING)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-1. HERO:
-   - Left (62%): Portfolio Title (clean_txt applied). Large Typography (Pt 44+). 
-   - Right (38%): 4 Stat Cards showing high-level highlights.
-2. CATALOG: Asymmetric layout. Cards for all apps found in BRIEF with 8pt spacing.
-3. DETAIL: One slide per app. 
-   - Left (62%): App Identity (clean_txt), Overview (Miller's Law chunking), Features.
-   - Right (38%): Technical Specs, Metrics, Domain Pills.
+- CLI: argparse with '--output' argument
+- clean_txt(t): re.sub(r'<[^>]*>', '', str(t))[:200] — strip HTML and truncate
+- set_bg(slide, hex_color): Fill the slide background with given hex
+- add_rect(slide, x, y, w, h, fill_hex, line_hex="#334155", line_w=1.0, radius=0.08):
+    Creates a rounded rectangle (MSO_SHAPE.ROUNDED_RECTANGLE). All dimensions in Inches.
+- add_txt(slide, text, x, y, w, h, size_pt, color_hex, bold=False, align=1):
+    Creates a text box. align: 1=Left, 2=Center, 3=Right.
+    ⚠️ ALWAYS call with positional args: add_txt(slide, "text", 0.5, 0.5, 3, 0.4, 12, "#F1F5F9", False, 1)
+- add_input_field(slide, label, x, y, w): Draws a labeled input field — label text above, input rect below. Returns total height used.
+- add_button(slide, text, x, y, w, h, bg_hex="#3B82F6", fg_hex="#FFFFFF"):
+    Draws a button (filled rounded rect with centered text inside).
+- add_table_placeholder(slide, headers, x, y, w, h):
+    Draws a simple table wireframe — header row + 4 sample data rows with alternating tints.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📄 SLIDES TO GENERATE (for each application in the brief, create 2-3 screens)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+For EACH application, generate these UI wireframe screens:
+
+SCREEN 1 — DASHBOARD / HOME:
+  Layout: Top nav bar + Left sidebar + Main content area
+  Main content: Page title "Dashboard", then a row of 3-4 KPI cards (metric tiles),
+  then 2 chart placeholders in a 2-column grid below the KPIs.
+
+SCREEN 2 — DATA VIEW / LIST:
+  Layout: Top nav bar + Left sidebar + Main content area
+  Main content: Page title (e.g. "Manage [domain items]"), filter bar with 2 input fields + "Search" button,
+  then a data table with 5-6 relevant column headers and 4 sample rows, pagination at the bottom.
+
+SCREEN 3 — FORM / DETAIL (if the app has 3+ features):
+  Layout: Top nav bar + Left sidebar + Main content area
+  Main content: Page title "Create New [item]" or "Settings", then a form with 4-6 labeled input fields
+  arranged in 2 columns, plus "Save" and "Cancel" buttons at the bottom.
+
+Also generate ONE title slide at the very start:
+  - Application name (large, 36pt)
+  - Tagline below (18pt, muted)
+  - "UI Wireframes" label
+  - Organisation name at bottom
+
+Process ALL applications from the brief — do not slice or limit the list.
+CRITICAL: USE A PYTHON \`for\` LOOP over the JSON applications list. Do NOT write repetitive hard-coded slides for each app. Write the slide logic ONCE inside helper functions, then call them in a loop. The generated Python script must be concise and DRY — helper functions + a single loop handles any number of apps.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ⚠️ CODE REQUIREMENTS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-- Library: from pptx import Presentation; from pptx.util import Inches, Pt; from pptx.dml.color import RGBColor;
-- [UNIFORM CLEANING]: CALL clean_txt() ON EVERY STRING BEFORE RENDERING.
-- Errors: Ensure graceful fallback for missing BRIEF keys.
-- Saving: prs.save(args.output).
+- Imports: from pptx import Presentation; from pptx.util import Inches, Pt, Emu; from pptx.dml.color import RGBColor; from pptx.enum.text import PP_ALIGN; from pptx.enum.shapes import MSO_SHAPE; import argparse, re, json
+- Set slide width = Inches(13.333), height = Inches(7.5)
+- Call clean_txt() on EVERY string from the brief before rendering
+- Graceful fallback for missing keys (use .get() with defaults)
+- NEVER TRUNCATE THE SCRIPT. Ensure \`prs.save(args.output)\` is present at the very end.
 
-OUTPUT ONLY THE COMPLETE PYTHON SCRIPT.`;
+OUTPUT ONLY THE COMPLETE PYTHON SCRIPT. NO MARKDOWN FENCES. NO COMMENTARY.`;
 
 
   try {
-    console.log(`[Design Engine v2.0] Starting...`);
+    console.log(`[Design Engine v3.0] Starting...`);
     const res = await model.invoke(prompt);
     const rawContent = res.content.toString();
 
     const pythonMatch = rawContent.match(/```python\s*([\s\S]*?)```/i);
     const genericMatch = rawContent.match(/```\s*([\s\S]*?)```/);
-    const rawPython = rawContent.match(/import sys[\s\S]*c\.save\(\)/i) || rawContent.match(/from reportlab[\s\S]*c\.save\(\)/i);
+    const rawPython = rawContent.match(/from pptx[\s\S]*/i) || rawContent.match(/import argparse[\s\S]*/i);
 
     let code = "";
     if (pythonMatch) code = pythonMatch[1].trim();
@@ -483,7 +539,7 @@ OUTPUT ONLY THE COMPLETE PYTHON SCRIPT.`;
 
     return code;
   } catch (err: any) {
-    throw new Error(`Design Engine (v2.0) Failed: ${err.message}`);
+    throw new Error(`Design Engine (v3.0) Failed: ${err.message}`);
   }
 }
 
@@ -643,11 +699,11 @@ OUTPUT ONLY THE SINGLE PYTHON SCRIPT. NO MARKDOWN. NO FENCES.`;
     // Cleaning logic
     code = code.replace(/```python/gi, '').replace(/```/gi, '').trim();
     if (code.includes('import sys') || code.includes('from pptx')) {
-       // Valid script start
+      // Valid script start
     } else {
-       // Might need to extract if LLM added preamble
-       const scriptMatch = code.match(/import sys[\s\S]*prs\.save\(\)/i) || code.match(/from pptx[\s\S]*prs\.save\(\)/i);
-       if (scriptMatch) code = scriptMatch[0].trim();
+      // Might need to extract if LLM added preamble
+      const scriptMatch = code.match(/import sys[\s\S]*prs\.save\(\)/i) || code.match(/from pptx[\s\S]*prs\.save\(\)/i);
+      if (scriptMatch) code = scriptMatch[0].trim();
     }
 
     return code;
