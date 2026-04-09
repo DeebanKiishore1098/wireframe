@@ -9,8 +9,12 @@ import {
   runApplicationBriefAgent,
   runWireframeGeneratorAgent,
   runPptxGeneratorAgent,
-  runDashboardPptxGeneratorAgent,
   extractStructuredDataFromDI,
+  runDomainIndustryClassifierAgent,
+  runKpiExtractorAgent,
+  runKpiEnhancerAgent,
+  runChartMapperAgent,
+  runLayoutEngineAgent,
 } from "@/utils/aiAgents";
 
 import { processAgent1Output, generateWebsiteTheme } from "@/utils/dataTransformers";
@@ -231,89 +235,101 @@ export async function POST(req: Request) {
       }
     }
 
-    // --- DASHBOARD PPTX PATH ---
+    // --- DASHBOARD PPTX PATH (v3.0 Pipeline) ---
     if (generatorType === "dashboard-pptx") {
-      console.log("[Dashboard PPTX Path] Initiating Analytics PPTX Workflow...");
+      console.log("[Dashboard PPTX Path] Initiating v3.0 Analytics PPTX Workflow...");
       
-      // 1. Run Analytics Pipeline
-      const kpiPresence = await classifyKpiPresence(fileBuffer, file.name, brdText);
-      let parsedKpiData: any;
-      if (kpiPresence.hasKPIs) {
-        const agent1RawJson = await runKpiAgent(brdText);
-        parsedKpiData = processAgent1Output(agent1RawJson, brdText);
-      } else {
-        const domainClassification = await runDomainClassificationAgent(brdText);
-        const agent4RawJson = await runKpiGeneratorAgent({
-          domain: domainClassification.domain,
-          industry: domainClassification.industry,
-          subIndustry: domainClassification.subIndustry,
-          clientName: domainClassification.clientName,
-          clientWebsite: domainClassification.clientWebsite,
-        });
-        parsedKpiData = processAgent1Output(agent4RawJson, brdText);
-      }
-      
-      const themeData = await generateWebsiteTheme(parsedKpiData);
-      const dashboardDesign = await runChartTypesAgent(themeData);
-      
-      const dashboardContext = {
-        theme: themeData,
-        design: typeof dashboardDesign === 'string' ? JSON.parse(dashboardDesign) : dashboardDesign
-      };
+      // 1. Extract Raw Content from Azure DI
+      console.log("[Dashboard PPTX Path] Calling Azure Document Intelligence...");
+      const diData = await extractStructuredDataFromDI(fileBuffer, file.name);
+      const brdText = diData.content;
 
-      // 2. Generate Python Script (Dashboard PPTX Design Engine)
-      const pythonCode = await runDashboardPptxGeneratorAgent(dashboardContext);
+      // 2. Step 1 (Parallel): Domain Classifier & KPI Extractor
+      console.log("[Dashboard PPTX Path] Step 1: Parallel Classification & Extraction...");
+      const [domainResult, rawKpis] = await Promise.all([
+        runDomainIndustryClassifierAgent(brdText),
+        runKpiExtractorAgent(brdText)
+      ]);
 
-      // 3. Execute Python
+      // 3. Step 2: KPI Enhancer (Count Enforcement 22-32)
+      console.log("[Dashboard PPTX Path] Step 2: Enhancing KPIs...");
+      const enhancerResult = await runKpiEnhancerAgent({
+        domain: domainResult.domain,
+        industry: domainResult.industry,
+        clientName: domainResult.clientName,
+        rawKpis: rawKpis
+      });
+
+      // 4. Step 3: Chart Mapper (Whitelist + Assignment)
+      console.log("[Dashboard PPTX Path] Step 3: Mapping Charts...");
+      const mapperResult = await runChartMapperAgent({
+        domain: domainResult.domain,
+        industry: domainResult.industry,
+        clientName: domainResult.clientName,
+        analysis_type: domainResult.analysis_type || "performance_vs_target",
+        enhancedKpis: enhancerResult
+      });
+
+      // 5. Fetch Brand Colors (Step 0 - Upstream Integrated)
+      console.log("[Dashboard PPTX Path] Resolving Brand Identity...");
+      const themeData = await generateWebsiteTheme({ 
+        clientName: domainResult.clientName || "Client",
+        industry: domainResult.industry || "Business"
+      });
+
+      // 6. Step 4: Layout Engine (Grid + Distribution)
+      console.log("[Dashboard PPTX Path] Step 4: Finalizing Layout...");
+      const layoutResult = await runLayoutEngineAgent({
+        chartMap: mapperResult,
+        websiteColors: themeData.finalColors,
+        requiredPages: 4
+      });
+
+      // 7. Step 5: Deterministic Python PPTX Engine
       const timestamp = Date.now();
-      const pyFilename = `gen_dash_pptx_${timestamp}.py`;
-      const pptxFilename = `dashboard_presentation_${timestamp}.pptx`;
-      const scriptPath = path.join(process.cwd(), pyFilename);
-      const outputPath = path.join(process.cwd(), pptxFilename);
+      const payloadPath = path.join(process.cwd(), `payload_${timestamp}.json`);
+      const outputPath = path.join(process.cwd(), `dashboard_${timestamp}.pptx`);
+      const enginePath = path.join(process.cwd(), "src", "utils", "dashboard_layout_engine.py");
 
       try {
-        // ── Security: validate generated code before touching disk ──
-        console.log(`[Dashboard PPTX Path] Validating generated Python script...`);
-        const validation = validatePythonScript(pythonCode);
-        if (!validation.safe) {
-          console.error(`[Dashboard PPTX Path] SECURITY: Script failed validation. Violations: ${validation.violations.join(', ')}`);
-          throw new Error(`Generated script failed security validation (${validation.violations.length} violation(s) detected). Regenerate or contact support.`);
-        }
-        console.log(`[Dashboard PPTX Path] Script passed security validation.`);
+        // Write payload to disk
+        await writeFileAsync(payloadPath, JSON.stringify(layoutResult, null, 2));
 
         const pyExec = await resolvePythonExecutable();
-        await writeFileAsync(scriptPath, pythonCode);
-
-        console.log(`[Dashboard PPTX Path] Executing: ${pyExec} "${scriptPath}" --output "${outputPath}"`);
+        console.log(`[Dashboard PPTX Path] Executing Deterministic Engine: ${pyExec} "${enginePath}" --payload "${payloadPath}" --output "${outputPath}"`);
+        
         await execAsync(
-          `${pyExec} "${scriptPath}" --output "${outputPath}"`,
+          `${pyExec} "${enginePath}" --payload "${payloadPath}" --output "${outputPath}"`,
           { timeout: PYTHON_EXEC_TIMEOUT_MS }
         );
 
         if (!fs.existsSync(outputPath)) {
-          throw new Error("Python script finished but the Dashboard PPTX was not created.");
+          throw new Error("Deterministic engine failed to produce PPTX file.");
         }
 
         const pptxBuffer = await readFileAsync(outputPath);
-        await safeUnlink(scriptPath);
+
+        // Cleanup
+        await safeUnlink(payloadPath);
         await safeUnlink(outputPath);
 
-        console.log("=== DASHBOARD PPTX WORKFLOW COMPLETE ===");
+        console.log("=== DASHBOARD v3.0 WORKFLOW COMPLETE ===");
         return new Response(pptxBuffer, {
           headers: {
             "Content-Type": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
             "Content-Disposition": `attachment; filename="dashboard_${timestamp}.pptx"`,
           },
         });
+
       } catch (err: any) {
-        console.error("[Dashboard PPTX Path] FAILURE:", err.message);
+        console.error("[Dashboard PPTX Path] CRITICAL FAILURE:", err.message);
         try {
-          if (fs.existsSync(scriptPath)) await safeUnlink(scriptPath);
+          if (fs.existsSync(payloadPath)) await safeUnlink(payloadPath);
           if (fs.existsSync(outputPath)) await safeUnlink(outputPath);
         } catch (cleanupErr) {
           console.warn("[Dashboard PPTX Path] Cleanup failed during error handling:", cleanupErr);
         }
-        return NextResponse.json({ error: `Dashboard PPTX Engine Error: ${err.message}` }, { status: 500 });
+        return NextResponse.json({ error: `Dashboard Engine Error: ${err.message}` }, { status: 500 });
       }
     }
 

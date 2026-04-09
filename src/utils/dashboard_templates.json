@@ -1,0 +1,122 @@
+{
+  "T01": {
+    "name": "Financial Performance Dashboard",
+    "domain": "finance",
+    "analysis_type": "performance_vs_target",
+    "kpi_requirements": ["Total Revenue", "EBITDA", "Gross Margin %", "OpEx", "Net Profit"]
+  },
+  "T02": {
+    "name": "Financial Variance Analysis",
+    "domain": "finance",
+    "analysis_type": "variance_analysis",
+    "kpi_requirements": ["Revenue Variance", "Expense Variance", "Budget Attainment %", "Forecast Accuracy", "P&L Deviation"]
+  },
+  "T03": {
+    "name": "Cost Analysis & Optimization",
+    "domain": "finance",
+    "analysis_type": "cost_analysis",
+    "kpi_requirements": ["Total Cost", "Cost Savings YTD", "Cost per Unit", "Budget Overrun %", "Direct vs Indirect Cost"]
+  },
+  "T04": {
+    "name": "Sales Performance Dashboard",
+    "domain": "sales",
+    "analysis_type": "performance_vs_target",
+    "kpi_requirements": ["Total Sales", "Quota Attainment %", "Deals Closed", "Win Rate %", "Avg Deal Size"]
+  },
+  "T05": {
+    "name": "Sales Funnel & Pipeline",
+    "domain": "sales",
+    "analysis_type": "funnel_pipeline",
+    "kpi_requirements": ["Total Pipeline Value", "Weighted Pipeline", "Avg Sales Cycle Days", "Forecast Close Rate", "Funnel Conversion %"]
+  },
+  "T06": {
+    "name": "Geographic Sales Comparison",
+    "domain": "sales",
+    "analysis_type": "geo_comparison",
+    "kpi_requirements": ["Revenue by Region", "Market Share by Territory", "Regional Growth Rate", "Customer Density", "Top Selling Region"]
+  },
+  "T07": {
+    "name": "Banking Portfolio Health",
+    "domain": "banking",
+    "analysis_type": "portfolio_health",
+    "kpi_requirements": ["Total Loan Book", "Disbursals MTD", "NPA Ratio %", "Delinquency Rate %", "Collection Efficiency %"]
+  },
+  "T08": {
+    "name": "Banking Risk Quantification",
+    "domain": "banking",
+    "analysis_type": "risk_quantification",
+    "kpi_requirements": ["VaR 95%", "Total Risk Exposure", "High Risk Portfolio %", "Capital Adequacy Ratio", "Credit Loss Reserves"]
+  },
+  "T09": {
+    "name": "Banking Customer Segmentation",
+    "domain": "banking",
+    "analysis_type": "segmentation",
+    "kpi_requirements": ["High Net Worth %", "Customer LTV", "Churn Risk Score", "Product Cross-sell Ratio", "Active User Base"]
+  },
+  "T10": {
+    "name": "Operational KPI Monitoring",
+    "domain": "operations",
+    "analysis_type": "operational_kpis",
+    "kpi_requirements": ["SLA Adherence %", "Cycle Time", "Throughput", "Defect Rate %", "Utilization Rate"]
+  },
+  "T11": {
+    "name": "Supply Chain Health",
+    "domain": "operations",
+    "analysis_type": "supply_chain_health",
+    "kpi_requirements": ["Inventory Turnover", "On-Time-Delivery %", "Lead Time Days", "Fill Rate %", "Supplier Quality Score"]
+  },
+  "T12": {
+    "name": "Correlation Analysis Dashboard",
+    "domain": "analytics",
+    "analysis_type": "correlation",
+    "kpi_requirements": ["Correlation Coefficient", "R-Squared Value", "P-Value", "Sample Size", "Variance Explained"]
+  },
+  "T13": {
+    "name": "Time Series Forecasting",
+    "domain": "analytics",
+    "analysis_type": "time_series",
+    "kpi_requirements": ["Trend Direction", "Seasonality Index", "Forecast Value", "Historical Avg", "Confidence Interval"]
+  },
+  "T14": {
+    "name": "Statistical Distribution",
+    "domain": "analytics",
+    "analysis_type": "distribution",
+    "kpi_requirements": ["Mean", "Median", "Standard Deviation", "Skewness", "Outlier Count"]
+  },
+  "T15": {
+    "name": "Marketing Performance",
+    "domain": "marketing",
+    "analysis_type": "marketing_performance",
+    "kpi_requirements": ["Impressions", "Clicks", "CTR %", "Conversions", "ROAS"]
+  },
+  "T16": {
+    "name": "Marketing Funnel Analysis",
+    "domain": "marketing",
+    "analysis_type": "funnel_analysis",
+    "kpi_requirements": ["MQL Count", "SQL Count", "Conversion Rate %", "Cost per Lead", "Funnel Velocity"]
+  },
+  "T17": {
+    "name": "Workforce Health Dashboard",
+    "domain": "hr",
+    "analysis_type": "workforce_health",
+    "kpi_requirements": ["Total Headcount", "Attrition Rate %", "Avg Tenure Years", "Engagement Score", "Diversity Index"]
+  },
+  "T18": {
+    "name": "Recruitment Funnel",
+    "domain": "hr",
+    "analysis_type": "recruitment_funnel",
+    "kpi_requirements": ["Applications Recieved", "Interview Rate %", "Offer Acceptance Rate", "Time to Hire", "Cost per Hire"]
+  },
+  "T19": {
+    "name": "Executive Strategic Overview",
+    "domain": "executive",
+    "analysis_type": "multi_domain_summary",
+    "kpi_requirements": ["Strategic OKR Progress", "Enterprise Revenue", "Global Profit Margin", "Total Risks Identified", "Overall Efficiency"]
+  },
+  "T20": {
+    "name": "Alert & Monitoring Dashboard",
+    "domain": "custom",
+    "analysis_type": "monitoring_alerting",
+    "kpi_requirements": ["Active Alerts", "SLA Breach Count", "System Uptime %", "Avg Response Time", "Critical Threshold Hits"]
+  }
+}

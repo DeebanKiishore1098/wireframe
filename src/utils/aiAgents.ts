@@ -26,6 +26,8 @@ const createAzureO1SeriesModel = () => {
   });
 };
 
+import dashboardTemplates from "./dashboard_templates.json";
+
 
 export { createAzureModel };
 
@@ -230,7 +232,7 @@ export async function runDomainClassificationAgent(documentText: string): Promis
   confidence: { domain: string; industry: string };
   reasoning: { domainIndicators: string[]; industryIndicators: string[] };
 }> {
-  const model = createAzureModel(2000);
+  const model = createAzureModel(16000);
 
   const prompt = `You are a Business Document Analyst. Classify the document by DOMAIN and INDUSTRY.
 OUTPUT VALID JSON ONLY. NO MARKDOWN.
@@ -267,7 +269,7 @@ export async function runKpiGeneratorAgent(domainIndustry: {
   domain: string; industry: string; subIndustry: string;
   clientName: string; clientWebsite: string;
 }): Promise<string> {
-  const model = createAzureModel(4000);
+  const model = createAzureModel(16000);
   const prompt = `Generate a KPI list for ${domainIndustry.domain} in ${domainIndustry.industry}.
 OUTPUT VALID JSON: { "clientName": "...", "kpiList": [], "metricList": [] }
 KPIS: 22-32. METRICS: 2x KPIs.`;
@@ -284,7 +286,7 @@ KPIS: 22-32. METRICS: 2x KPIs.`;
 // AGENT 1: Extraction Agent
 // ============================================================
 export async function runKpiAgent(brdText: string): Promise<string> {
-  const model = createAzureModel(8000);
+  const model = createAzureModel(16000);
   const prompt = `Extract KPIs from BRD. 22-32 KPIs.
 OUTPUT VALID JSON ONLY: { "clientName": "...", "kpiList": [], "metricList": [] }
 BRD CONTENT:
@@ -383,7 +385,7 @@ Return ONLY the raw JSON object. First character must be "{", last character "}"
  * Agent: Application Brief (STRUCTURING ENGINE v2.0)
  */
 export async function runApplicationBriefAgent(diJson: string | object): Promise<string> {
-  const model = createAzureModel(12000);
+  const model = createAzureModel(16000);
 
   // Prune the input JSON to stay within token limits
   const prunedData = pruneDiJson(typeof diJson === 'string' ? JSON.parse(diJson) : diJson);
@@ -686,264 +688,209 @@ OUTPUT ONLY THE COMPLETE PYTHON SCRIPT.`;
   }
 }
 
+
+// ============================================================
+// ============================================================
+// DASHBOARD PIPELINE v3.0 AGENTS (Multi-Stage Pipeline)
+// ============================================================
+
 /**
- * Agent: Dashboard PPTX Generator (ANALYTICS DESIGN ENGINE v3.0)
- * - Uses website-extracted brand colours from themeData
- * - 13.333 × 7.5 inch widescreen landscape slides
- * - One slide per tab, charts matching HTML output types
+ * Step 1a: Domain & Industry Classifier
+ * Parallel with Step 1b.
  */
-export async function runDashboardPptxGeneratorAgent(dashboardContext: any): Promise<string> {
+export async function runDomainIndustryClassifierAgent(brdText: string): Promise<any> {
   const model = createAzureModel(16000);
+  const prompt = `You are a Business Document Analyst. Your ONLY task is to classify the document by DOMAIN and INDUSTRY.
 
-  // ── Extract brand colours from theme (website-scraped) ─────────────────────
-  const theme = dashboardContext.theme || {};
-  const finalColors = theme.finalColors || {};
-  const brandColors = theme.brandColors || {};
-  const chartColorList: string[] = theme.chartColors || ['#6366F1', '#10B981', '#F43F5E', '#F59E0B', '#3B82F6', '#8B5CF6'];
+BUSINESS DOMAINS (exactly ONE):
+Sales, Marketing, Operations, Finance, HR, Supply Chain, Customer Service, IT
 
-  const BG      = finalColors.background   || '#0F172A';
-  const CARD    = finalColors.card         || '#1E293B';
-  const TEXT    = finalColors.text         || '#F1F5F9';
-  const MUTED   = finalColors.textMuted    || '#94A3B8';
-  const BORDER  = finalColors.border       || '#334155';
-  const ACCENT  = finalColors.accent       || brandColors.primary  || '#6366F1';
-  const ACCENT2 = finalColors.secondary    || brandColors.secondary || '#10B981';
-  const HDR     = brandColors.primary      || ACCENT;
+CLIENT INDUSTRIES (exactly ONE):
+Banking, Insurance, Manufacturing, FMCG, Retail, E-Commerce, SaaS, Telecommunications, Healthcare, Pharmaceuticals, Energy, Utilities, Logistics, Automotive, Real Estate, Media & Entertainment, Education, Government, Professional Services, Hospitality
 
-  // Stringify chart colors as Python list literal
-  const CHART_COLORS_PY = chartColorList.slice(0, 8)
-    .map(c => `"${c.replace(/^#/, '')}"`)
-    .join(', ');
+CRITICAL OUTPUT RULES:
+- OUTPUT ONLY VALID JSON
+- NO markdown, NO explanations
+- OUTPUT STARTS WITH { and ENDS WITH }
 
-  const clientName = theme.clientName || 'Dashboard';
-  const industry   = theme.industry   || '';
-
-  // Pass only the fields the LLM needs (keep token budget lean)
-  const designPayload = {
-    clientName,
-    industry,
-    kpiList:       (theme.kpiList || []).slice(0, 20),
-    visualizations: (
-      dashboardContext.design?.visualizations ||
-      dashboardContext.design?.tabs           ||
-      []
-    ).slice(0, 40),
-  };
-  const contextStr = JSON.stringify(designPayload, null, 2);
-
-  const PAGE_LABELS: Record<string, string> = {
-    executive:   'Executive Overview',
-    correlation: 'Correlation Analysis',
-    operational: 'Operational Comparison',
-    risk:        'Risk Monitoring',
-    efficiency:  'Efficiency Insights',
-    diagnostic:  'Diagnostic Analysis',
-  };
-
-  const prompt = `You are the IntelliFrame DASHBOARD PPTX ENGINE (v3.0).
-Generate a SINGLE complete Python script using python-pptx that creates a professional analytics dashboard presentation.
-The script must run without errors and produce a valid .pptx file.
-
-═══════════════════════════════════════════════════════════
-🎨 BRAND COLOURS — EXTRACTED FROM CLIENT WEBSITE (USE EXACTLY AS GIVEN)
-═══════════════════════════════════════════════════════════
-BG_HEX      = "${BG}"       # slide background
-CARD_HEX    = "${CARD}"     # card / container fill
-TEXT_HEX    = "${TEXT}"     # primary text
-MUTED_HEX   = "${MUTED}"    # secondary / muted text
-BORDER_HEX  = "${BORDER}"   # card borders
-ACCENT_HEX  = "${ACCENT}"   # accent / highlight
-ACCENT2_HEX = "${ACCENT2}"  # secondary accent
-HDR_HEX     = "${HDR}"      # header bar colour
-CHART_COLORS = [${CHART_COLORS_PY}]   # chart series colours IN ORDER
-
-Define these as module-level constants at the top of the script.
-Use RGBColor(int(h[0:2],16), int(h[2:4],16), int(h[4:6],16)) to convert (strip leading #).
-
-═══════════════════════════════════════════════════════════
-📐 SLIDE DIMENSIONS (MANDATORY — DO NOT CHANGE)
-═══════════════════════════════════════════════════════════
-prs.slide_width  = Inches(13.333)
-prs.slide_height = Inches(7.5)
-Safe area: x ∈ [0.3, 13.0], y ∈ [0.3, 7.2]
-Margins: left/right = 0.4 in, top (below header) = 0.9 in, bottom = 0.3 in
-
-═══════════════════════════════════════════════════════════
-📥 DASHBOARD CONTEXT
-═══════════════════════════════════════════════════════════
-${contextStr}
-
-═══════════════════════════════════════════════════════════
-🛠️ REQUIRED UTILITIES (define all before use)
-═══════════════════════════════════════════════════════════
-def rgb(h):
-    h = h.lstrip('#')
-    return RGBColor(int(h[0:2],16), int(h[2:4],16), int(h[4:6],16))
-
-def set_bg(slide, hex_color):
-    # fills slide background with solid colour
-    bg = slide.background; fill = bg.fill
-    fill.solid(); fill.fore_color.rgb = rgb(hex_color)
-
-def add_rect(slide, x, y, w, h, fill_hex, line_hex=None, line_w=0.5):
-    from pptx.util import Pt as _Pt
-    shape = slide.shapes.add_shape(1, Inches(x), Inches(y), Inches(w), Inches(h))
-    shape.fill.solid(); shape.fill.fore_color.rgb = rgb(fill_hex)
-    if line_hex:
-        shape.line.color.rgb = rgb(line_hex); shape.line.width = _Pt(line_w)
-    else:
-        shape.line.fill.background()
-    return shape
-
-def add_txt(slide, text, x, y, w, h, size_pt, color_hex, bold=False, align=2):
-    from pptx.enum.text import PP_ALIGN as _PA
-    txb = slide.shapes.add_textbox(Inches(x), Inches(y), Inches(w), Inches(h))
-    tf = txb.text_frame; tf.word_wrap = True
-    p = tf.paragraphs[0]
-    p.alignment = [None, _PA.LEFT, _PA.CENTER, _PA.RIGHT][align]
-    run = p.add_run(); run.text = str(text)[:120]
-    run.font.size = Pt(size_pt); run.font.bold = bold
-    run.font.color.rgb = rgb(color_hex)
-    return txb
-
-def add_header(slide, title, page_num=None):
-    # Full-width header bar
-    add_rect(slide, 0, 0, 13.333, 0.65, HDR_HEX)
-    add_txt(slide, title, 0.4, 0.1, 10, 0.45, 20, "FFFFFF", bold=True, align=1)
-    if page_num:
-        add_txt(slide, str(page_num), 12.5, 0.15, 0.7, 0.35, 11, "FFFFFF", align=3)
-
-def add_kpi_tile(slide, x, y, w, h, label, value, trend_str, trend_positive=True):
-    add_rect(slide, x, y, w, h, CARD_HEX, BORDER_HEX)
-    add_txt(slide, label[:30], x+0.1, y+0.1, w-0.2, 0.35, 10, MUTED_HEX, align=1)
-    add_txt(slide, str(value), x+0.1, y+0.45, w-0.2, 0.55, 22, ACCENT_HEX, bold=True, align=1)
-    trend_color = "10B981" if trend_positive else "EF4444"
-    add_txt(slide, trend_str, x+0.1, y+h-0.4, w-0.2, 0.3, 9, trend_color, align=1)
-
-CHART_TYPE_MAP = {
-    "bar":           XL_CHART_TYPE.COLUMN_CLUSTERED,
-    "column":        XL_CHART_TYPE.COLUMN_CLUSTERED,
-    "stackedbar":    XL_CHART_TYPE.COLUMN_STACKED,
-    "horizontalbar": XL_CHART_TYPE.BAR_CLUSTERED,
-    "line":          XL_CHART_TYPE.LINE,
-    "area":          XL_CHART_TYPE.AREA_STACKED,
-    "pie":           XL_CHART_TYPE.PIE,
-    "doughnut":      XL_CHART_TYPE.DOUGHNUT,
-    "scatter":       XL_CHART_TYPE.XY_SCATTER,
-    "radar":         XL_CHART_TYPE.RADAR,
-    "combo":         XL_CHART_TYPE.COLUMN_CLUSTERED,
+OUTPUT SCHEMA:
+{
+  "domain": "[DOMAIN]",
+  "industry": "[INDUSTRY]",
+  "subIndustry": "[SUB-INDUSTRY or General]",
+  "clientName": "[CLIENT NAME]",
+  "clientWebsite": "[URL or empty string]",
+  "clientEmail": "[email or empty string]",
+  "confidence": { "domain": "high|medium|low", "industry": "high|medium|low" },
+  "reasoning": { "domainIndicators": [], "industryIndicators": [] },
+  "analysis_type": "[e.g. correlation, trend, distribution, comparison, performance_vs_target]"
 }
 
-def add_chart_to_slide(slide, viz, cx, cy, cw, ch):
-    ctype_str = (viz.get("type") or "bar").lower()
-    xl_type = CHART_TYPE_MAP.get(ctype_str, XL_CHART_TYPE.COLUMN_CLUSTERED)
-    cfg = viz.get("cfg") or {}
-    cats = cfg.get("cat") or ["Q1","Q2","Q3","Q4","Q5","Q6"]
-    vals = cfg.get("data") or [30,45,28,60,42,55]
-    label = cfg.get("label") or viz.get("title") or "Series"
-    chart_data = CategoryChartData()
-    chart_data.categories = cats
-    chart_data.add_series(label[:40], vals)
-    # Add container background
-    add_rect(slide, cx, cy, cw, ch, CARD_HEX, BORDER_HEX)
-    # Chart title
-    title_txt = (viz.get("title") or "")[:50]
-    add_txt(slide, title_txt, cx+0.1, cy+0.05, cw-0.2, 0.3, 9, MUTED_HEX, align=1)
-    # Actual chart (inset 0.1in on each side, 0.35in from top for title)
-    chart_x = Inches(cx + 0.08)
-    chart_y = Inches(cy + 0.38)
-    chart_w = Inches(max(cw - 0.16, 0.5))
-    chart_h = Inches(max(ch - 0.45, 0.5))
-    chart = slide.shapes.add_chart(xl_type, chart_x, chart_y, chart_w, chart_h, chart_data).chart
-    chart.has_title = False
-    # Colour the first series with CHART_COLORS
-    try:
-        series = chart.series[0]
-        c_hex = CHART_COLORS[0]
-        series.format.fill.solid()
-        series.format.fill.fore_color.rgb = rgb(c_hex)
-    except Exception:
-        pass
-
-═══════════════════════════════════════════════════════════
-📄 SLIDE LAYOUT RULES
-═══════════════════════════════════════════════════════════
-
-SLIDE 1 — TITLE SLIDE:
-  set_bg(slide, HDR_HEX)
-  Centered large title: clientName + " Analytics Dashboard" (36pt, white, bold)
-  Subtitle: industry label (16pt, semi-white)
-  Gradient accent strip: a 13.333×0.12in rectangle in ACCENT_HEX at y=3.9
-  Date bottom-right (10pt), "Powered by IntelliFrame" bottom-center (9pt, muted)
-
-SLIDE 2 — EXECUTIVE OVERVIEW:
-  set_bg(slide, BG_HEX)
-  add_header(slide, "Executive Overview")
-  KPI TILES ROW at y=0.8:
-    - Take the first 4 items from kpiList
-    - 4 tiles in a row: tile_w=2.9, tile_h=1.5, gap=0.27, start_x=0.4
-    - Use add_kpi_tile(); generate realistic sample values and "+X.X%" trend strings
-  CHARTS AREA below KPIs (y=2.55, available height ≈ 4.65in):
-    - Take all visualizations with pageId="executive" (max 2)
-    - 2 charts side by side: cx=[0.4, 6.87], cy=2.55, cw=6.17, ch=4.45
-    - If only 1 chart: full width (cx=0.4, cw=12.53)
-    - Call add_chart_to_slide() for each
-
-SLIDES 3+ — ONE SLIDE PER TAB:
-  Group ALL remaining visualizations by their pageId.
-  Process pageIds in this order: correlation, operational, risk, efficiency, diagnostic.
-  Skip a pageId if it has zero visualizations.
-  For each pageId group:
-    set_bg(slide, BG_HEX)
-    tab_label = PAGE_LABELS dict lookup (see below)
-    add_header(slide, tab_label)
-    Layout charts to fill the area y=0.75 → 7.2 (available_h = 6.45):
-      1 chart  → full slide: cx=0.4, cy=0.75, cw=12.53, ch=6.45
-      2 charts → side by side: cw=6.1, ch=6.45, gap=0.3
-      3 charts → top row 2 charts + bottom 1 centred:
-                  top: cw=6.1, ch=3.0, cy=0.75
-                  bottom: cx=3.4, cy=4.0, cw=6.53, ch=3.1
-      4+ charts → 2×2 grid: cw=6.1, ch=3.0, gaps 0.3in
-
-PAGE_LABELS = {${Object.entries(PAGE_LABELS).map(([k,v]) => `\n    "${k}": "${v}"`).join(',')}\n}
-
-═══════════════════════════════════════════════════════════
-⚠️ CODE REQUIREMENTS (CRITICAL)
-═══════════════════════════════════════════════════════════
-Imports (all required):
-  import sys, os, re, argparse, json
-  from pptx import Presentation
-  from pptx.util import Inches, Pt, Emu
-  from pptx.dml.color import RGBColor
-  from pptx.enum.text import PP_ALIGN
-  from pptx.chart.data import CategoryChartData
-  from pptx.enum.chart import XL_CHART_TYPE
-
-CLI: argparse with --output argument.
-Set slide size IMMEDIATELY after creating prs:
-  prs = Presentation()
-  prs.slide_width = Inches(13.333)
-  prs.slide_height = Inches(7.5)
-Use blank slide layout: prs.slide_layouts[6]
-Embed dashboard data as a Python variable (do NOT rely on external files).
-NEVER truncate the script. End with: prs.save(args.output)
-
-OUTPUT ONLY THE COMPLETE PYTHON SCRIPT. NO MARKDOWN FENCES. NO COMMENTARY.`;
+DOCUMENT CONTENT:
+${brdText}`;
 
   try {
-    console.log(`[Dashboard PPTX Engine v3.0] Generating brand-themed analytics presentation...`);
     const res = await model.invoke(prompt);
-    let code = res.content.toString();
-
-    code = code.replace(/```python/gi, '').replace(/```/gi, '').trim();
-    if (!code.includes('from pptx') && !code.includes('import argparse')) {
-      const scriptMatch = code.match(/import[\s\S]*?prs\.save\(/i) || code.match(/from pptx[\s\S]*/i);
-      if (scriptMatch) code = scriptMatch[0].trim();
-    }
-
-    return code;
+    let cleaned = res.content.toString().replace(/```json\s*/gi, '').replace(/```\s*/gi, '').trim();
+    return JSON.parse(cleaned);
   } catch (err: any) {
-    throw new Error(`Dashboard PPTX Design Engine v3.0 Failed: ${err.message}`);
+    throw new Error(`Domain Industry Classifier Failed: ${err.message}`);
+  }
+}
+
+/**
+ * Step 1b: KPI Extractor (Pure Extraction)
+ * Parallel with Step 1a.
+ */
+export async function runKpiExtractorAgent(brdText: string): Promise<any> {
+  const model = createAzureModel(16000);
+  const prompt = `You are a Business KPI Extraction Specialist. Your ONLY task is to read the BRD and extract every KPI you can find or validly derive.
+
+RULES:
+1. Extract ALL explicitly listed KPIs (source: "BRD").
+2. Derive additional KPIs ONLY from fields present in the BRD (source: "Derived from BRD (fields)").
+3. NO minimum count. NO industry fallback library.
+4. NO Refusal. Extract whatever is there.
+
+OUTPUT SCHEMA:
+{
+  "kpiList": [
+    { "name": "[KPI Name]", "source": "[Source]", "chart_title": "[Title Pattern]" }
+  ],
+  "_extractionSummary": { "brd_count": 0, "derived_count": 0, "total": 0, "needs_enhancement": true }
+}
+
+CHART TITLE PATTERNS:
+"[KPI] Distribution" / "[KPI] Trend Over Time" / "[KPI] by [Dimension]" / "[KPI A] vs [KPI B]" / "[KPI] Dispersion" / "[KPI] Composition"
+
+DOCUMENT CONTENT:
+${brdText}`;
+
+  try {
+    const res = await model.invoke(prompt);
+    let cleaned = res.content.toString().replace(/```json\s*/gi, '').replace(/```\s*/gi, '').trim();
+    return JSON.parse(cleaned);
+  } catch (err: any) {
+    throw new Error(`KPI Extractor Failed: ${err.message}`);
+  }
+}
+
+/**
+ * Step 2: KPI Enhancer (Count Enforcement)
+ */
+export async function runKpiEnhancerAgent(context: any): Promise<any> {
+  const model = createAzureModel(16000);
+  const prompt = `You are a KPI Enhancement Specialist. Your job is to ensure the final KPI list meets the 22–32 requirement.
+
+DECISION LOGIC:
+IF total < 22:
+  Calculate slotsNeeded = 22 - currentCount.
+  Select EXACTLY slotsNeeded KPIs from the internal ${context.domain} + ${context.industry} library.
+  Tag as "source": "Industry fallback".
+ELSE:
+  Use existing list exactly as received.
+
+CHART TITLE patterns apply to fallback KPIs.
+Generate EXACTLY 2 supporting metrics per KPI for all KPIs (22 KPIs = 44 metrics).
+Select 2-4 style moods (executive, analytical, corporate, operational, strategic, modern, minimal).
+
+OUTPUT SCHEMA:
+{
+  "clientName": "${context.clientName || 'Client'}",
+  "industry": "${context.industry || 'Banking'}",
+  "domain": "${context.domain || 'Finance'}",
+  "kpiList": [],
+  "metricList": [],
+  "preferredStyleMoods": [],
+  "_enhancementSummary": { "received_count": 0, "library_added": 0, "final_count": 0, "enhancement_applied": true }
+}
+
+INPUT DATA:
+Domain: ${context.domain}
+Industry: ${context.industry}
+Current Count: ${context.rawKpis._extractionSummary.total}
+Raw KPIs: ${JSON.stringify(context.rawKpis.kpiList)}`;
+
+  try {
+    const res = await model.invoke(prompt);
+    let cleaned = res.content.toString().replace(/```json\s*/gi, '').replace(/```\s*/gi, '').trim();
+    return JSON.parse(cleaned);
+  } catch (err: any) {
+    throw new Error(`KPI Enhancer Failed: ${err.message}`);
+  }
+}
+
+/**
+ * Step 3: Chart Mapper (Whitelist enforcement + Assignment)
+ */
+export async function runChartMapperAgent(context: any): Promise<any> {
+  const model = createAzureModel(16000);
+  const prompt = `You are a Chart Mapping Specialist.
+JOB 1: WHITELIST ENFORCEMENT. Every chart reference (sourceKPI) MUST be an exact match to a name from the whitelist.
+JOB 2: CHART TYPE ASSIGNMENT (TWO LAYERS).
+  Layer 1: Use Analysis Type Priority (${context.analysis_type}).
+  Layer 2: Use KPI Semantics (Trend->line, Volume->bar, etc.).
+Assign exact chart types (line, clustered_bar, horizontal_bar, doughnut, etc.).
+First 4 KPIs are cards. Remaining are charts.
+
+DISTRIBUTION CAPS: line: 5, clustered_bar: 6, horizontal_bar: 4, stacked_bar: 3, doughnut: 2, etc.
+
+OUTPUT SCHEMA:
+{
+  "clientName": "${context.clientName}",
+  "industry": "${context.industry}",
+  "domain": "${context.domain}",
+  "totalKpis": ${context.enhancedKpis.kpiList.length},
+  "chartMap": [
+    { "id": "v1", "type": "kpi-card|line|...", "sourceKPI": "Exact Match", "title": "Chart Title", "cfg": { "label": "KPI", "cat": ["Jan", "Feb"], "data": [10, 20] } }
+  ]
+}
+
+WHITELIST: ${JSON.stringify(context.enhancedKpis.kpiList.map((k: any) => k.name))}`;
+
+  try {
+    const res = await model.invoke(prompt);
+    let cleaned = res.content.toString().replace(/```json\s*/gi, '').replace(/```\s*/gi, '').trim();
+    return JSON.parse(cleaned);
+  } catch (err: any) {
+    throw new Error(`Chart Mapper Failed: ${err.message}`);
+  }
+}
+
+/**
+ * Step 4: Layout Engine (Grid + Distribution)
+ */
+export async function runLayoutEngineAgent(context: any): Promise<any> {
+  const model = createAzureModel(16000);
+  const prompt = `You are a Dashboard Layout Specialist. Organize charts into a multi-page 4-column grid.
+RULES:
+1. Every row MUST sum to 4 columns (25%=1, 50%=2, 100%=4).
+2. KPI cards (first 4) sit on Page 1, Row 1, 25% width each.
+3. Distribute remaining charts across 4-5 pages.
+4. Apply accent colors to KPI cards (1st=primary from websiteColors, 4th=secondary).
+
+OUTPUT SCHEMA:
+{
+  "clientName": "${context.chartMap.clientName}",
+  "industry": "${context.chartMap.industry}",
+  "pageCount": 4,
+  "colors": { "primary": "#3B82F6", "secondary": "#1E40AF", "success": "#107C10", "warning": "#FFB900", "danger": "#D13438" },
+  "visualizations": [
+    { "id": "", "page": 1, "row": 1, "width": "25%", "type": "kpi-card|line|...", "sourceKPI": "", "title": "", "sampleValue": "0", "sampleChange": "+0%", "accentColor": "#hex", "cfg": {} }
+  ]
+}
+
+INPUT:
+Chart Map: ${JSON.stringify(context.chartMap.chartMap)}
+Website Colors: ${JSON.stringify(context.websiteColors)}
+Page Count Required: ${context.requiredPages || 4}`;
+
+  try {
+    const res = await model.invoke(prompt);
+    let cleaned = res.content.toString().replace(/```json\s*/gi, '').replace(/```\s*/gi, '').trim();
+    return JSON.parse(cleaned);
+  } catch (err: any) {
+    throw new Error(`Layout Engine Failed: ${err.message}`);
   }
 }
 
