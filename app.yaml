@@ -1,0 +1,6 @@
+command:
+  [
+    "sh",
+    "-c",
+    "pip3 install -r requirements.txt --quiet && npm install && npm run build && npm start",
+  ]

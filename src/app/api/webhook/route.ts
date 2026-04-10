@@ -21,6 +21,7 @@ import { processAgent1Output, generateWebsiteTheme } from "@/utils/dataTransform
 import { generateHybridDashboardHTML } from "@/utils/dashboardGenerator";
 import { exec } from "child_process";
 import fs from "fs";
+import os from "os";
 import path from "path";
 import { promisify } from "util";
 import { validatePythonScript, PYTHON_EXEC_TIMEOUT_MS, resolvePythonExecutable } from "@/utils/pythonSandbox";
@@ -93,8 +94,8 @@ export async function POST(req: Request) {
       const timestamp = Date.now();
       const pyFilename = `gen_wireframe_${timestamp}.py`;
       const pptxFilename = `output_wireframe_${timestamp}.pptx`;
-      const scriptPath = path.join(process.cwd(), pyFilename);
-      const outputPath = path.join(process.cwd(), pptxFilename);
+      const scriptPath = path.join(os.tmpdir(), pyFilename);
+      const outputPath = path.join(os.tmpdir(), pptxFilename);
 
       try {
         // ── Security: validate generated code before touching disk ──
@@ -114,7 +115,7 @@ export async function POST(req: Request) {
 
         console.log("[PDF Path] Ensuring python-pptx is installed...");
         try {
-          await execAsync(`${pyExec} -m pip install python-pptx`);
+          await execAsync(`${pyExec} -m pip install python-pptx --quiet --disable-pip-version-check`);
         } catch (e: any) {
           console.warn("PIP install warning (might already exist):", e.stderr || e.message);
         }
@@ -134,9 +135,8 @@ export async function POST(req: Request) {
 
         if (!fs.existsSync(outputPath)) {
           console.error(`[PDF Path] Output file missing at ${outputPath}`);
-          // List files in CWD for debug
-          const files = fs.readdirSync(process.cwd());
-          console.log("[PDF Path] Files in CWD:", files.filter(f => f.startsWith("output") || f.endsWith(".pptx")));
+          const files = fs.readdirSync(os.tmpdir());
+          console.log("[PDF Path] Files in tmpdir:", files.filter(f => f.startsWith("output") || f.endsWith(".pptx")));
           throw new Error("Python script finished but the PPTX was not created. This usually means a logic error in the generated script.");
         }
 
@@ -184,8 +184,8 @@ export async function POST(req: Request) {
       const timestamp = Date.now();
       const pyFilename = `gen_pptx_${timestamp}.py`;
       const pptxFilename = `output_presentation_${timestamp}.pptx`;
-      const scriptPath = path.join(process.cwd(), pyFilename);
-      const outputPath = path.join(process.cwd(), pptxFilename);
+      const scriptPath = path.join(os.tmpdir(), pyFilename);
+      const outputPath = path.join(os.tmpdir(), pptxFilename);
 
       try {
         // ── Security: validate generated code before touching disk ──
@@ -287,8 +287,8 @@ export async function POST(req: Request) {
 
       // 7. Step 5: Deterministic Python PPTX Engine
       const timestamp = Date.now();
-      const payloadPath = path.join(process.cwd(), `payload_${timestamp}.json`);
-      const outputPath = path.join(process.cwd(), `dashboard_${timestamp}.pptx`);
+      const payloadPath = path.join(os.tmpdir(), `payload_${timestamp}.json`);
+      const outputPath = path.join(os.tmpdir(), `dashboard_${timestamp}.pptx`);
       const enginePath = path.join(process.cwd(), "src", "utils", "dashboard_layout_engine.py");
 
       try {
